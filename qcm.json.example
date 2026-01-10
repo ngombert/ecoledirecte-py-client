@@ -1,0 +1,17 @@
+{
+  "Quelle est votre ville de résidence ?": [
+    "PARIS"
+  ],
+  "Quel est le niveau scolaire de <prénom> ?": [
+    "QUATRIEMES"
+  ],
+  "Quelle est votre année de naissance ?": [
+    "1970"
+  ],
+  "Quel est le mois de naissance de <prénom> ?": [
+    "janvier"
+  ],
+  "Quelle est l'année de naissance de <prénom> ?": [
+    "1970"
+  ]
+}

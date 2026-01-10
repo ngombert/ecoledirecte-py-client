@@ -1,0 +1,47 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "ecoledirecte-py-client"
+version = "0.1.0"
+description = "A comprehensive Python client for the EcoleDirecte API with MFA support."
+readme = "README.md"
+requires-python = ">=3.9"
+license = {text = "GPL-3.0-or-later"}
+authors = [
+    {name = "Nicolas GOMBERT", email = "gombert.n@gmail.com"}
+]
+keywords = ["ecoledirecte", "api-client", "education", "france", "mfa", "student"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "Intended Audience :: Education",
+    "License :: OSI Approved :: GNU General Public License v3 or later (GPLv3+)",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Education",
+    "Topic :: Internet :: WWW/HTTP",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+]
+dependencies = [
+    "httpx>=0.28.1",
+    "pydantic>=2.12.5",
+]
+
+[project.urls]
+Homepage = "https://github.com/ngombert/ecoledirecte-py-client"
+Repository = "https://github.com/ngombert/ecoledirecte-py-client"
+Issues = "https://github.com/ngombert/ecoledirecte-py-client/issues"
+
+[dependency-groups]
+dev = [
+    "pytest>=8.3.4",
+    "pytest-asyncio>=0.25.2",
+    "pytest-httpx>=0.35.0",
+]
