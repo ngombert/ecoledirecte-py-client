@@ -1,5 +1,9 @@
 # ecoledirecte-py-client
 
+[![PyPI version](https://badge.fury.io/py/ecoledirecte-py-client.svg)](https://pypi.org/project/ecoledirecte-py-client/)
+[![Python Support](https://img.shields.io/pypi/pyversions/ecoledirecte-py-client.svg)](https://pypi.org/project/ecoledirecte-py-client/)
+[![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg)](https://www.gnu.org/licenses/gpl-3.0)
+
 A Python client for the EcoleDirecte API, supporting both Student and Family accounts with Multi-Factor Authentication (MFA) handling.
 
 ## Features
@@ -13,7 +17,13 @@ A Python client for the EcoleDirecte API, supporting both Student and Family acc
 
 ## Installation
 
-This project uses `uv` for dependency management.
+Install from PyPI using pip:
+
+```bash
+pip install ecoledirecte-py-client
+```
+
+Or using uv:
 
 ```bash
 uv add ecoledirecte-py-client
