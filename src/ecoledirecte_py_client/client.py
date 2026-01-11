@@ -16,6 +16,9 @@ from .exceptions import (
 from .student import Student
 from .family import Family
 from .managers.grades_manager import GradesManager
+from .managers.homework_manager import HomeworkManager
+from .managers.schedule_manager import ScheduleManager
+from .managers.messages_manager import MessagesManager
 
 
 class Client:
@@ -49,6 +52,9 @@ class Client:
 
         # Managers
         self.grades = GradesManager(self)
+        self.homework = HomeworkManager(self)
+        self.schedule = ScheduleManager(self)
+        self.messages = MessagesManager(self)
         self.cn: Optional[str] = None
         self.cv: Optional[str] = None
 
