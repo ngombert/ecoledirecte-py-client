@@ -3,6 +3,7 @@ from .student import Student
 from .family import Family
 from .exceptions import EcoleDirecteError, LoginError, ApiError, MFARequiredError
 from .models import Account, LoginResponse
+from .mfa import default_console_callback
 
 __all__ = [
     "Client",
@@ -14,4 +15,5 @@ __all__ = [
     "MFARequiredError",
     "Account",
     "LoginResponse",
+    "default_console_callback",
 ]
