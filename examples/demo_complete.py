@@ -7,9 +7,9 @@ This demo showcases ALL features of the ecoledirecte-py-client library,
 demonstrating how an external developer would use this SDK in their application.
 
 Features demonstrated:
-- Client initialization and authentication
-- MFA handling (auto-submission and interactive fallback)
-- Device persistence (cn/cv tokens)
+- Client initialization with automatic MFA handling
+- Device persistence (cn/cv tokens) - automatic
+- MFA answer caching - automatic
 - Both Student and Family account types
 - All managers: Grades, Homework, Schedule, Messages
 - Working with typed Pydantic models
@@ -19,9 +19,8 @@ Features demonstrated:
 import asyncio
 import os
 import sys
-import json
 from datetime import datetime, timedelta
-from typing import List, Optional
+from typing import List
 
 # Ensure src is in python path for local testing without install
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "../src")))
@@ -30,9 +29,9 @@ from ecoledirecte_py_client import (
     Client,
     LoginError,
     ApiError,
-    MFARequiredError,
     Family,
     Student,
+    default_console_callback,
 )
 
 # Import Pydantic models to demonstrate type-safe data handling
@@ -40,57 +39,6 @@ from ecoledirecte_py_client.models.grades import Grade
 from ecoledirecte_py_client.models.homework import HomeworkAssignment
 from ecoledirecte_py_client.models.schedule import ScheduleEvent
 from ecoledirecte_py_client.models.messages import Message
-
-# Configuration files
-QCM_FILE = "qcm.json"
-DEVICE_FILE = "device.json"
-
-
-# =============================================================================
-# Helper Functions for MFA and Device Management
-# =============================================================================
-
-
-def load_qcm() -> dict:
-    """Load saved MFA answers from qcm.json."""
-    if os.path.exists(QCM_FILE):
-        try:
-            with open(QCM_FILE, "r") as f:
-                return json.load(f)
-        except Exception:
-            return {}
-    return {}
-
-
-def save_qcm(question: str, answer: str):
-    """Save a successful MFA answer to qcm.json."""
-    data = load_qcm()
-    if question not in data:
-        data[question] = []
-
-    if answer not in data[question]:
-        data[question].append(answer)
-
-    with open(QCM_FILE, "w") as f:
-        json.dump(data, f, indent=2, ensure_ascii=False)
-
-
-def load_device_tokens() -> tuple[Optional[str], Optional[str]]:
-    """Load device tokens (cn, cv) from device.json."""
-    if os.path.exists(DEVICE_FILE):
-        try:
-            with open(DEVICE_FILE, "r") as f:
-                data = json.load(f)
-                return data.get("cn"), data.get("cv")
-        except Exception:
-            pass
-    return None, None
-
-
-def save_device_tokens(cn: str, cv: str):
-    """Save device tokens to device.json for future use."""
-    with open(DEVICE_FILE, "w") as f:
-        json.dump({"cn": cn, "cv": cv}, f, indent=2)
 
 
 # =============================================================================
@@ -412,73 +360,6 @@ async def fetch_student_data(client: Client, student_id: int, student_name: str)
 # =============================================================================
 
 
-async def handle_mfa(client: Client, error: MFARequiredError):
-    """
-    Handle MFA challenge with auto-submission and interactive fallback.
-
-    This demonstrates best practices for MFA handling in a production application.
-    """
-    print("\n" + "=" * 80)
-    print("🔐 MFA CHALLENGE DETECTED")
-    print("=" * 80)
-    print(f"\nQuestion: {error.question}")
-
-    # Try auto-submission with known answer
-    known_answers = load_qcm().get(error.question, [])
-    if known_answers:
-        print(f"\n💡 Found {len(known_answers)} known answer(s) in qcm.json")
-        answer = known_answers[-1]  # Use most recent
-        print(f"🤖 Auto-submitting: {answer}")
-
-        try:
-            session = await client.submit_mfa(answer)
-            print("✓ MFA verification successful (automatic)!")
-
-            # Save device tokens
-            if client.cn and client.cv:
-                save_device_tokens(client.cn, client.cv)
-                print("✓ Device tokens saved for future logins")
-
-            return session
-
-        except Exception as e:
-            print(f"❌ Auto-submission failed: {e}")
-            print("⚠️  Falling back to interactive mode...")
-
-    # Interactive MFA handling
-    print("\n📋 Available options:")
-    for idx, option in enumerate(error.propositions):
-        print(f"  {idx}: {option}")
-
-    while True:
-        choice = input("\n👉 Enter your choice (index or full text): ").strip()
-
-        # Parse choice
-        answer = choice
-        if choice.isdigit() and int(choice) < len(error.propositions):
-            answer = error.propositions[int(choice)]
-            print(f"✓ Selected: {answer}")
-
-        try:
-            session = await client.submit_mfa(answer)
-            print("✓ MFA verification successful!")
-
-            # Save the correct answer
-            save_qcm(error.question, answer)
-            print("✓ Answer saved to qcm.json")
-
-            # Save device tokens
-            if client.cn and client.cv:
-                save_device_tokens(client.cn, client.cv)
-                print("✓ Device tokens saved for future logins")
-
-            return session
-
-        except Exception as e:
-            print(f"❌ Verification failed: {e}")
-            print("Please try again...")
-
-
 async def main():
     """
     Main entry point - Complete SDK usage example.
@@ -512,31 +393,21 @@ async def main():
         print("  uv run --env-file .env examples/demo_complete.py")
         return
 
-    # Initialize client
-    client = Client()
+    # Initialize client with automatic MFA handling
+    client = Client(
+        device_file="device.json",  # Auto-persist device tokens
+        qcm_file="qcm.json",  # Auto-cache MFA answers
+        mfa_callback=default_console_callback,  # Auto-handle MFA prompts
+    )
     session = None
 
     try:
-        # Attempt login with device tokens (if available)
-        cn, cv = load_device_tokens()
-        if cn and cv:
-            print("\n🔑 Using saved device tokens to bypass MFA...")
-        else:
-            print("\n🔑 Logging in (first time, MFA may be required)...")
-
+        # Simple login - all MFA and device persistence handled automatically!
         print(f"👤 Username: {username}")
+        print("🔑 Logging in (MFA will be handled automatically if required)...")
 
-        try:
-            session = await client.login(username, password, cn=cn, cv=cv)
-            print(f"✓ Login successful! Account type: {type(session).__name__}")
-
-            # Save new device tokens if updated
-            if client.cn and client.cv and (client.cn != cn or client.cv != cv):
-                save_device_tokens(client.cn, client.cv)
-                print("✓ Device tokens saved")
-
-        except MFARequiredError as mfa_error:
-            session = await handle_mfa(client, mfa_error)
+        session = await client.login(username, password)
+        print(f"✓ Login successful! Account type: {type(session).__name__}")
 
         # Process the session
         if isinstance(session, Family):

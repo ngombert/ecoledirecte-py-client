@@ -1,7 +1,8 @@
 import httpx
 import json
 import base64
-from typing import Optional, Union, Dict, Any
+import os
+from typing import Optional, Union, Dict, Any, Callable, List
 from .models import Account
 from .exceptions import (
     ApiError,
@@ -22,8 +23,27 @@ from .managers.messages_manager import MessagesManager
 
 
 class Client:
-    def __init__(self):
+    def __init__(
+        self,
+        device_file: Optional[str] = "device.json",
+        qcm_file: Optional[str] = "qcm.json",
+        mfa_callback: Optional[Callable[[str, List[str]], str]] = None,
+    ):
+        """
+        Initialize EcoleDirecte client.
+
+        Args:
+            device_file: Path to device token cache file (None to disable persistence)
+            qcm_file: Path to MFA answer cache file (None to disable persistence)
+            mfa_callback: Optional callback function for interactive MFA.
+                         Signature: (question: str, options: List[str]) -> str
+                         If None and MFA required, raises MFARequiredError
+        """
         self.token: Optional[str] = None
+        self.device_file = device_file
+        self.qcm_file = qcm_file
+        self.mfa_callback = mfa_callback
+
         # Headers from reference implementation
         self.headers = {
             "Accept": "application/json, text/plain, */*",
@@ -57,6 +77,69 @@ class Client:
         self.messages = MessagesManager(self)
         self.cn: Optional[str] = None
         self.cv: Optional[str] = None
+
+    # =========================================================================
+    # Persistence Helper Methods
+    # =========================================================================
+
+    def _load_device_tokens(self) -> tuple[Optional[str], Optional[str]]:
+        """Load device tokens (cn, cv) from file if persistence is enabled."""
+        if not self.device_file or not os.path.exists(self.device_file):
+            return None, None
+
+        try:
+            with open(self.device_file, "r") as f:
+                data = json.load(f)
+                return data.get("cn"), data.get("cv")
+        except Exception:
+            # Silently ignore errors (corrupted file, permissions, etc.)
+            return None, None
+
+    def _save_device_tokens(self, cn: str, cv: str):
+        """Save device tokens to file if persistence is enabled."""
+        if not self.device_file:
+            return
+
+        try:
+            with open(self.device_file, "w") as f:
+                json.dump({"cn": cn, "cv": cv}, f, indent=2)
+        except Exception:
+            # Silently ignore errors
+            pass
+
+    def _load_qcm_cache(self) -> dict:
+        """Load saved MFA answers from file if persistence is enabled."""
+        if not self.qcm_file or not os.path.exists(self.qcm_file):
+            return {}
+
+        try:
+            with open(self.qcm_file, "r") as f:
+                return json.load(f)
+        except Exception:
+            return {}
+
+    def _save_qcm_answer(self, question: str, answer: str):
+        """Save a successful MFA answer to file if persistence is enabled."""
+        if not self.qcm_file:
+            return
+
+        try:
+            data = self._load_qcm_cache()
+            if question not in data:
+                data[question] = []
+
+            if answer not in data[question]:
+                data[question].append(answer)
+
+            with open(self.qcm_file, "w") as f:
+                json.dump(data, f, indent=2, ensure_ascii=False)
+        except Exception:
+            # Silently ignore errors
+            pass
+
+    # =========================================================================
+    # Authentication Methods
+    # =========================================================================
 
     async def _get_gtk(self):
         """Retrieves the GTK (Global Token Key) and sets up session cookies."""
@@ -170,8 +253,29 @@ class Client:
     async def login(
         self, username, password, cn: Optional[str] = None, cv: Optional[str] = None
     ) -> Union[Student, Family]:
+        """
+        Authenticate with EcoleDirecte.
+
+        Args:
+            username: EcoleDirecte username
+            password: EcoleDirecte password
+            cn: Optional device token (auto-loaded from file if available)
+            cv: Optional device token (auto-loaded from file if available)
+
+        Returns:
+            Student or Family account instance
+
+        Raises:
+            MFARequiredError: If MFA is required and no callback is configured
+            LoginError: If authentication fails
+        """
         await self._get_gtk()
         self._temp_credentials = (username, password)
+
+        # Auto-load device tokens if not provided
+        if cn is None and cv is None:
+            cn, cv = self._load_device_tokens()
+
         self.cn = cn
         self.cv = cv
         url = "https://api.ecoledirecte.com/v3/login.awp"
@@ -200,16 +304,8 @@ class Client:
             code = resp_json.get("code")
 
             if code == 250:
-                # Fetch QCM Question
-                qcm = await self._get_qcm_connexion()
-                question = base64.b64decode(qcm.get("question", "")).decode("utf-8")
-                propositions = [
-                    base64.b64decode(p).decode("utf-8")
-                    for p in qcm.get("propositions", [])
-                ]
-                raise MFARequiredError(
-                    "MFA Required", question=question, propositions=propositions
-                )
+                # MFA Required - Try auto-submit or invoke callback
+                return await self._handle_mfa_flow()
 
             # Delegate to standard handler for other cases (success or other errors)
             # We already parsed json, but _handle_response does it again.
@@ -240,6 +336,108 @@ class Client:
 
         json_data = self._handle_response(response)
         return json_data.get("data", {})
+
+    async def _handle_mfa_flow(self) -> Union[Student, Family]:
+        """
+        Handle MFA authentication flow with auto-submit and callback support.
+
+        Process:
+        1. Fetch QCM question and options
+        2. Try auto-submit from cached answers
+        3. If auto-submit fails and callback provided, invoke callback
+        4. If no callback, raise MFARequiredError (backward compatible)
+        5. On success, save answer to cache and device tokens
+
+        Returns:
+            Student or Family account instance
+
+        Raises:
+            MFARequiredError: If MFA required and no callback configured
+            LoginError: If MFA verification fails
+        """
+        # Fetch QCM question
+        qcm = await self._get_qcm_connexion()
+        question = base64.b64decode(qcm.get("question", "")).decode("utf-8")
+        propositions = [
+            base64.b64decode(p).decode("utf-8") for p in qcm.get("propositions", [])
+        ]
+
+        # Try auto-submit from cache
+        cached_answers = self._load_qcm_cache().get(question, [])
+        if cached_answers:
+            # Try most recent answer
+            cached_answer = cached_answers[-1]
+            try:
+                session = await self._submit_mfa_answer(cached_answer, question)
+                return session
+            except Exception:
+                # Auto-submit failed, continue to callback or raise
+                pass
+
+        # No cached answer or auto-submit failed
+        if self.mfa_callback is None:
+            # Backward compatible: raise error for manual handling
+            raise MFARequiredError(
+                "MFA Required", question=question, propositions=propositions
+            )
+
+        # Invoke callback for interactive MFA
+        try:
+            answer = self.mfa_callback(question, propositions)
+            if not answer or not isinstance(answer, str):
+                raise ValueError("MFA callback must return a non-empty string")
+
+            session = await self._submit_mfa_answer(answer, question)
+            return session
+
+        except Exception as e:
+            if isinstance(e, (ApiError, EcoleDirecteError)):
+                raise
+            raise LoginError(f"MFA callback failed: {str(e)}")
+
+    async def _submit_mfa_answer(
+        self, answer: str, question: str
+    ) -> Union[Student, Family]:
+        """
+        Submit MFA answer and complete authentication.
+
+        On success, saves the answer to cache and device tokens to file.
+
+        Args:
+            answer: The MFA answer to submit
+            question: The MFA question (for caching)
+
+        Returns:
+            Student or Family account instance
+
+        Raises:
+            ApiError: If submission fails
+        """
+        encoded_answer = base64.b64encode(answer.encode("utf-8")).decode("ascii")
+        url = "https://api.ecoledirecte.com/v3/connexion/doubleauth.awp"
+        params = {"verbe": "post", "v": self.api_version}
+        body = f'data={{"choix": "{encoded_answer}"}}'
+
+        response = await self.client.post(url, params=params, content=body)
+        json_data = self._handle_response(response)
+
+        data = json_data.get("data", {})
+        cn = data.get("cn")
+        cv = data.get("cv")
+
+        if not cn or not cv:
+            raise LoginError("MFA success but CN/CV missing")
+
+        self.cn = cn
+        self.cv = cv
+
+        # Save successful answer to cache
+        self._save_qcm_answer(question, answer)
+
+        # Save device tokens
+        self._save_device_tokens(cn, cv)
+
+        return await self._login_with_cn_cv(cn, cv)
 
     async def submit_mfa(self, answer: str) -> Union[Student, Family]:
         encoded_answer = base64.b64encode(answer.encode("utf-8")).decode("ascii")
