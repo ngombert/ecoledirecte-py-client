@@ -1,5 +1,4 @@
 from typing import TYPE_CHECKING, Optional, List, Dict, Any
-from .models import ApiResponse
 
 if TYPE_CHECKING:
     from .client import Client
@@ -13,22 +12,9 @@ class Student:
     async def get_grades(self, quarter: Optional[int] = None) -> Dict[str, Any]:
         """
         Retrieves the student's grades.
-        :param quarter: (Optional) Specific quarter/period
+        Delegates to self.session.grades.get
         """
-        url = f"https://api.ecoledirecte.com/v3/eleves/{self.id}/notes.awp?verbe=get&"
-        response = await self.session.request(url)
-        # TODO: Parse response using models if needed, for now return raw data or basic parsing
-        # The JS implementation filters by period if quarter is offered.
-        data = response.get("data", {})
-        if quarter:
-            # JS: return response.data.data.periodes.find(p => p.idPeriode === `A00${quarter}`)
-            period_id = f"A00{quarter}"
-            periods = data.get("periodes", [])
-            for p in periods:
-                if p.get("idPeriode") == period_id:
-                    return p
-            return {}
-        return data.get("notes", [])
+        return await self.session.grades.get(self.id, quarter)
 
     async def get_homework(self) -> Dict[str, Any]:
         """

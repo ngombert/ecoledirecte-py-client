@@ -12,3 +12,4 @@ wheels/
 .env*
 references/
 qcm.json
+device.json
