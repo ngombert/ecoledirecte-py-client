@@ -16,6 +16,7 @@ class HomeworkAssignment(BaseModel):
     id_devoir: int = Field(alias="idDevoir")
     documents_a_faire: bool = Field(False, alias="documentsAFaire")
     donne_le: date = Field(alias="donneLe")
+    pour_le: date = None  # Injected by HomeworkResponse from dict key
     effectue: bool
     interrogation: bool
     rendre_en_ligne: bool = Field(False, alias="rendreEnLigne")
@@ -45,10 +46,28 @@ class HomeworkResponse(BaseModel):
     def parse_root_dict(cls, data: Any) -> Any:
         """
         The API returns a dict { "YYYY-MM-DD": [ ... ] }.
-        We wrap it into 'days' field.
+        We wrap it into 'days' field and inject pour_le into each assignment.
         """
         if isinstance(data, dict) and "days" not in data:
-            return {"days": data}
+            # Inject pour_le into each assignment
+            processed_data = {}
+            for date_str, assignments in data.items():
+                # Convert date string to date object
+                try:
+                    due_date = date.fromisoformat(date_str)
+                except (ValueError, TypeError):
+                    continue
+
+                # Inject pour_le into each assignment
+                updated_assignments = []
+                for assignment in assignments:
+                    if isinstance(assignment, dict):
+                        assignment["pour_le"] = due_date
+                    updated_assignments.append(assignment)
+
+                processed_data[due_date] = updated_assignments
+
+            return {"days": processed_data}
         return data
 
     @property
