@@ -1,0 +1,5 @@
+# Ignorer tous les fichiers JSON capturés (contiennent des données sensibles)
+*.json
+
+# Garder le README
+!README.md

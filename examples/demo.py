@@ -87,12 +87,34 @@ async def main():
         )
         return
 
+    # Load device tokens if available
+    device_info = {}
+    if os.path.exists("device.json"):
+        try:
+            with open("device.json", "r") as f:
+                device_info = json.load(f)
+        except Exception:
+            pass
+
+    cn = device_info.get("cn")
+    cv = device_info.get("cv")
+
     client = Client()
     session = None
     try:
         print(f"Logging in as {username}...")
-        session = await client.login(username, password)
+        if cn and cv:
+            print("Using saved device tokens to bypass MFA...")
+
+        session = await client.login(username, password, cn=cn, cv=cv)
         print(f"Login successful! Session type: {type(session).__name__}")
+
+        # Save device tokens if they are new or updated
+        if client.cn and client.cv and (client.cn != cn or client.cv != cv):
+            print("Saving new device tokens...")
+            with open("device.json", "w") as f:
+                json.dump({"cn": client.cn, "cv": client.cv}, f, indent=2)
+
         await fetch_data(session)
 
     except MFARequiredError as e:
@@ -112,6 +134,13 @@ async def main():
             try:
                 session = await client.submit_mfa(potential_answer)
                 print("MFA Verification Successful (Auto)!")
+
+                # Save device tokens after successful MFA
+                if client.cn and client.cv:
+                    print("Saving device tokens for future use...")
+                    with open("device.json", "w") as f:
+                        json.dump({"cn": client.cn, "cv": client.cv}, f, indent=2)
+
                 await fetch_data(session)
                 return  # Exit main on success
             except Exception as e:
@@ -142,6 +171,12 @@ async def main():
                 # Save correct answer
                 save_qcm(e.question, answer)
                 print("Answer saved to qcm.json")
+
+                # Save device tokens after successful MFA
+                if client.cn and client.cv:
+                    print("Saving device tokens for future use...")
+                    with open("device.json", "w") as f:
+                        json.dump({"cn": client.cn, "cv": client.cv}, f, indent=2)
 
                 await fetch_data(session)
                 break

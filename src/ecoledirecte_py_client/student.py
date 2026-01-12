@@ -1,5 +1,4 @@
 from typing import TYPE_CHECKING, Optional, List, Dict, Any
-from .models import ApiResponse
 
 if TYPE_CHECKING:
     from .client import Client
@@ -13,47 +12,53 @@ class Student:
     async def get_grades(self, quarter: Optional[int] = None) -> Dict[str, Any]:
         """
         Retrieves the student's grades.
-        :param quarter: (Optional) Specific quarter/period
+        Delegates to self.session.grades.get
         """
-        url = f"https://api.ecoledirecte.com/v3/eleves/{self.id}/notes.awp?verbe=get&"
-        response = await self.session.request(url)
-        # TODO: Parse response using models if needed, for now return raw data or basic parsing
-        # The JS implementation filters by period if quarter is offered.
-        data = response.get("data", {})
-        if quarter:
-            # JS: return response.data.data.periodes.find(p => p.idPeriode === `A00${quarter}`)
-            period_id = f"A00{quarter}"
-            periods = data.get("periodes", [])
-            for p in periods:
-                if p.get("idPeriode") == period_id:
-                    return p
-            return {}
-        return data.get("notes", [])
+        return await self.session.grades.get(self.id, quarter)
 
-    async def get_homework(self) -> Dict[str, Any]:
+    async def get_homework(self, sort_by_due_date: bool = False) -> List[Any]:
         """
         Retrieves homeworks.
-        Implementation based on `Student.js`.
+        Delegates to self.session.homework.list
+
+        Args:
+            sort_by_due_date: If True, sorts assignments by due date.
+
+        Returns:
+            List of HomeworkAssignment objects.
         """
-        url = f"https://api.ecoledirecte.com/v3/Eleves/{self.id}/cahierdetexte.awp?verbe=get&"
-        response = await self.session.request(url)
-        return response.get("data", {})
+        return await self.session.homework.list(
+            self.id, sort_by_due_date=sort_by_due_date
+        )
 
     async def get_schedule(
-        self, start_date: str, end_date: str
-    ) -> List[Dict[str, Any]]:
+        self, start_date: str, end_date: str, sort_by_date: bool = True
+    ) -> List[Any]:
         """
         Retrieves schedule.
-        dates should be formatted/typed appropriately.
-        """
-        url = (
-            f"https://api.ecoledirecte.com/v3/E/{self.id}/emploidutemps.awp?verbe=get&"
-        )
-        payload = {"dateDebut": start_date, "dateFin": end_date}
-        response = await self.session.request(url, payload)
-        return response.get("data", [])
+        Delegates to self.session.schedule.list
 
-    async def get_messages(self) -> Dict[str, Any]:
-        url = f"https://api.ecoledirecte.com/v3/eleves/{self.id}/messages.awp?verbe=getall&typeRecuperation=received&orderBy=date&order=desc&page=0&itemsPerPage=20&onlyRead=&query=&idClasseur=0"
-        response = await self.session.request(url)
-        return response.get("data", {})
+        Args:
+            start_date: Start date in ISO format (YYYY-MM-DD).
+            end_date: End date in ISO format (YYYY-MM-DD).
+            sort_by_date: If True, sorts events by start date.
+
+        Returns:
+            List of ScheduleEvent objects.
+        """
+        return await self.session.schedule.list(
+            self.id, start_date, end_date, sort_by_date=sort_by_date
+        )
+
+    async def get_messages(self, message_type: str = "received") -> List[Any]:
+        """
+        Retrieves messages.
+        Delegates to self.session.messages.list
+
+        Args:
+            message_type: Type of messages ('received', 'sent', or 'all').
+
+        Returns:
+            List of Message objects.
+        """
+        return await self.session.messages.list(self.id, message_type=message_type)
