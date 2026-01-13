@@ -1,5 +1,5 @@
 from datetime import datetime
-from typing import Any, List, Optional
+from typing import Any, List, Optional, Union
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from .common import ClasseInfo, Module
@@ -106,7 +106,9 @@ class Account(BaseModel):
     parametres_individuels: Optional[AccountParameters] = Field(
         None, alias="parametresIndividuels"
     )
-    profile: Optional[FamilyProfile] = None  # Only present for family accounts
+    profile: Optional[Union[FamilyProfile, StudentProfile]] = (
+        None  # Parsing depends on fields
+    )
 
     @field_validator("last_connexion", mode="before")
     @classmethod

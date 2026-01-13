@@ -158,6 +158,9 @@ class Client:
             # or we just want the cookies/GTK specifically without full error parsing yet?
             # Actually, standard error handling should apply, but let's keep it specific for GTK extraction first.
 
+            if response.status_code != 200:
+                self._handle_response(response)
+
             gtk_value = response.cookies.get("GTK")
             if gtk_value:
                 self.headers["x-gtk"] = gtk_value
@@ -229,9 +232,7 @@ class Client:
             # We will raise it generically here, but Login flow catches it specifically.
             raise ApiError(f"MFA Required (Unexpected context): {message}", code=code)
         elif code == 505:  # Invalid credentials or session
-            raise AuthenticationError(
-                f"Invalid Credentials or Session: {message}", code=code
-            )
+            raise LoginError(f"Invalid Credentials or Session: {message}", code=code)
         elif code == 520 or code == 525:
             # 520: Token invalide ?
             raise AuthenticationError(f"Token Invalid or Expired: {message}", code=code)
@@ -299,7 +300,8 @@ class Client:
                 self._update_token(response.headers["x-token"])
 
             resp_json = response.json()
-            # Body token ignored in favor of header token as per reference
+            if not self.token and "token" in resp_json:
+                self._update_token(resp_json["token"])
 
             code = resp_json.get("code")
 
