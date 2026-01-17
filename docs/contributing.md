@@ -543,7 +543,7 @@ cProfile.run('profile_function()')
 
 1. Update version in `pyproject.toml`
 2. Update CHANGELOG (if exists)
-3. Create git tag: `git tag v0.2.0`
+3. Create git tag: `git tag v0.2.1`
 4. Push tag: `git push --tags`
 5. GitHub Actions will build and publish to PyPI
 
