@@ -85,6 +85,40 @@ asyncio.run(main())
 
 ### Handling MFA Challenges
 
+The recommended way to handle MFA is using the `mfa_callback` parameter:
+
+```python
+import asyncio
+from ecoledirecte_py_client import Client
+
+def mfa_callback(question: str, choices: list[str]) -> str:
+    """Interactive MFA callback."""
+    print(f"MFA Required: {question}")
+    for idx, choice in enumerate(choices):
+        print(f"  {idx}: {choice}")
+    selection = int(input("Select option: "))
+    return choices[selection]
+
+async def main():
+    # Pass the callback to handle MFA automatically
+    client = Client(mfa_callback=mfa_callback)
+    session = await client.login("username", "password")
+    print("Login successful!")
+    await client.close()
+
+asyncio.run(main())
+```
+
+Alternatively, you can use the built-in console callback:
+
+```python
+from ecoledirecte_py_client import Client, default_console_callback
+
+client = Client(mfa_callback=default_console_callback)
+```
+
+Or handle MFA manually with try/except:
+
 ```python
 from ecoledirecte_py_client import Client, MFARequiredError
 
@@ -93,21 +127,14 @@ async def main():
     
     try:
         session = await client.login("username", "password")
-        print("Login successful!")
-        
     except MFARequiredError as e:
         print(f"MFA Required: {e.question}")
-        print("Options:")
         for idx, option in enumerate(e.propositions):
             print(f"  {idx}: {option}")
         
-        # Get user input
         choice = int(input("Select option: "))
         answer = e.propositions[choice]
-        
-        # Submit MFA answer
         session = await client.submit_mfa(answer)
-        print("MFA verification successful!")
     
     await client.close()
 
@@ -123,6 +150,20 @@ asyncio.run(main())
 - **[Contributing](docs/contributing.md)** - Guide for contributors
 
 ## Configuration
+
+### Client Options
+
+The `Client` constructor accepts the following optional parameters:
+
+```python
+from ecoledirecte_py_client import Client
+
+client = Client(
+    device_file="device.json",   # Path to device token cache (None to disable)
+    qcm_file="qcm.json",         # Path to MFA answer cache (None to disable)
+    mfa_callback=my_callback,    # Callback for interactive MFA (see below)
+)
+```
 
 ### Environment Variables
 
@@ -156,6 +197,8 @@ The library automatically manages MFA answers in a `qcm.json` file. When you suc
 }
 ```
 
+Device tokens are cached in `device.json` to avoid repeated MFA challenges on trusted devices.
+
 See [docs/mfa.md](docs/mfa.md) for detailed MFA handling strategies.
 
 ## Available Methods
@@ -169,12 +212,16 @@ grades_q1 = await student.get_grades(quarter=1)
 
 # Get homework assignments
 homework = await student.get_homework()
+homework_sorted = await student.get_homework(sort_by_due_date=True)
 
 # Fetch schedule for date range
 schedule = await student.get_schedule("2024-01-01", "2024-01-31")
+schedule = await student.get_schedule("2024-01-01", "2024-01-31", sort_by_date=False)
 
 # Access messages
-messages = await student.get_messages()
+messages = await student.get_messages()  # received by default
+messages = await student.get_messages(message_type="sent")
+messages = await student.get_messages(message_type="all")
 ```
 
 ### Family Class
@@ -205,8 +252,19 @@ ecoledirecte-py-client/
 │   ├── client.py                # Main Client class
 │   ├── student.py               # Student account methods
 │   ├── family.py                # Family account methods
-│   ├── models.py                # Pydantic models
-│   └── exceptions.py            # Custom exceptions
+│   ├── mfa.py                   # MFA handling utilities
+│   ├── exceptions.py            # Custom exceptions
+│   ├── models/                  # Pydantic models
+│   │   ├── auth.py
+│   │   ├── grades.py
+│   │   ├── homework.py
+│   │   ├── messages.py
+│   │   └── schedule.py
+│   └── managers/                # API managers
+│       ├── grades_manager.py
+│       ├── homework_manager.py
+│       ├── messages_manager.py
+│       └── schedule_manager.py
 ├── examples/                    # Usage examples
 │   └── demo.py                  # Complete demo script
 ├── tests/                       # Test suite
