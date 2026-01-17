@@ -14,19 +14,21 @@ class TestIntegrationStudentLogin:
     """Integration tests for complete student login flow."""
 
     async def test_complete_student_login_flow(
-        self, httpx_mock: HTTPXMock, temp_files, mock_login_response_student
+        self, httpx_mock: HTTPXMock, temp_files, mock_student_login_response
     ):
         """Test complete login flow for a student account."""
         # Mock GTK
         httpx_mock.add_response(
-            url="https://api.ecoledirecte.com/",
+            method="GET",
+            url="https://api.ecoledirecte.com/v3/login.awp?v=4.90.1&gtk=1",
             json={"code": 200, "token": "", "message": "", "data": {}},
         )
 
         # Mock successful login
         httpx_mock.add_response(
-            url="https://api.ecoledirecte.com/v3/login.awp",
-            json=mock_login_response_student,
+            method="POST",
+            url="https://api.ecoledirecte.com/v3/login.awp?v=4.90.1",
+            json=mock_student_login_response,
         )
 
         client = Client(**temp_files)
@@ -34,8 +36,8 @@ class TestIntegrationStudentLogin:
 
         # Verify we got a Student instance
         assert isinstance(session, Student)
-        assert session.id == mock_login_response_student["data"]["accounts"][0]["id"]
-        assert client.token == mock_login_response_student["token"]
+        assert session.id == mock_student_login_response["data"]["accounts"][0]["id"]
+        assert client.token == mock_student_login_response["token"]
 
         await client.close()
 
@@ -43,25 +45,27 @@ class TestIntegrationStudentLogin:
         self,
         httpx_mock: HTTPXMock,
         temp_files,
-        mock_login_response_student,
+        mock_student_login_response,
         mock_grades_response,
         mock_homework_response,
     ):
         """Test complete flow of logging in and fetching student data."""
         # Mock GTK
         httpx_mock.add_response(
-            url="https://api.ecoledirecte.com/",
+            method="GET",
+            url="https://api.ecoledirecte.com/v3/login.awp?v=4.90.1&gtk=1",
             json={"code": 200, "token": "", "message": "", "data": {}},
         )
 
         # Mock login
         httpx_mock.add_response(
-            url="https://api.ecoledirecte.com/v3/login.awp",
-            json=mock_login_response_student,
+            method="POST",
+            url="https://api.ecoledirecte.com/v3/login.awp?v=4.90.1",
+            json=mock_student_login_response,
         )
 
         # Mock grades request
-        student_id = mock_login_response_student["data"]["accounts"][0]["id"]
+        student_id = mock_student_login_response["data"]["accounts"][0]["id"]
         httpx_mock.add_response(
             url=f"https://api.ecoledirecte.com/v3/eleves/{student_id}/notes.awp?verbe=get&",
             json=mock_grades_response,
@@ -92,19 +96,21 @@ class TestIntegrationFamilyLogin:
     """Integration tests for complete family login flow."""
 
     async def test_complete_family_login_flow(
-        self, httpx_mock: HTTPXMock, temp_files, mock_login_response_family
+        self, httpx_mock: HTTPXMock, temp_files, mock_family_login_response
     ):
         """Test complete login flow for a family account."""
         # Mock GTK
         httpx_mock.add_response(
-            url="https://api.ecoledirecte.com/",
+            method="GET",
+            url="https://api.ecoledirecte.com/v3/login.awp?v=4.90.1&gtk=1",
             json={"code": 200, "token": "", "message": "", "data": {}},
         )
 
         # Mock successful family login
         httpx_mock.add_response(
-            url="https://api.ecoledirecte.com/v3/login.awp",
-            json=mock_login_response_family,
+            method="POST",
+            url="https://api.ecoledirecte.com/v3/login.awp?v=4.90.1",
+            json=mock_family_login_response,
         )
 
         client = Client(**temp_files)
@@ -117,23 +123,25 @@ class TestIntegrationFamilyLogin:
         await client.close()
 
     async def test_family_multiple_students_data_fetch(
-        self, httpx_mock: HTTPXMock, temp_files, mock_login_response_family
+        self, httpx_mock: HTTPXMock, temp_files, mock_family_login_response
     ):
         """Test fetching data for multiple students in a family account."""
         # Mock GTK
         httpx_mock.add_response(
-            url="https://api.ecoledirecte.com/",
+            method="GET",
+            url="https://api.ecoledirecte.com/v3/login.awp?v=4.90.1&gtk=1",
             json={"code": 200, "token": "", "message": "", "data": {}},
         )
 
         # Mock family login
         httpx_mock.add_response(
-            url="https://api.ecoledirecte.com/v3/login.awp",
-            json=mock_login_response_family,
+            method="POST",
+            url="https://api.ecoledirecte.com/v3/login.awp?v=4.90.1",
+            json=mock_family_login_response,
         )
 
         # Mock grades for both students
-        for student_data in mock_login_response_family["data"]["accounts"][0][
+        for student_data in mock_family_login_response["data"]["accounts"][0][
             "profile"
         ]["eleves"]:
             student_id = student_data["id"]
@@ -172,33 +180,62 @@ class TestIntegrationMFAFlow:
 
         # Mock GTK
         httpx_mock.add_response(
-            url="https://api.ecoledirecte.com/",
+            method="GET",
+            url="https://api.ecoledirecte.com/v3/login.awp?v=4.90.1&gtk=1",
             json={"code": 200, "token": "", "message": "", "data": {}},
         )
 
         # Mock login requiring MFA
         httpx_mock.add_response(
-            url="https://api.ecoledirecte.com/v3/login.awp",
+            method="POST",
+            url="https://api.ecoledirecte.com/v3/login.awp?v=4.90.1",
             json=build_api_response({"codeQCM": "REQUIRED"}, code=250),
         )
 
         # Mock QCM question
+        import base64
+
         httpx_mock.add_response(
-            url="https://api.ecoledirecte.com/v3/connexion/doubleauth.awp?verbe=get&",
+            method="POST",
+            url="https://api.ecoledirecte.com/v3/connexion/doubleauth.awp?verbe=get&v=4.90.1",
             json={
                 "code": 200,
                 "token": "",
                 "message": "",
                 "data": {
-                    "question": "Quelle est la couleur du cheval blanc d'Henri IV ?",
-                    "propositions": ["Blanc", "Noir", "Gris", "Marron"],
+                    "question": base64.b64encode(
+                        "Quelle est la couleur du cheval blanc d'Henri IV ?".encode(
+                            "utf-8"
+                        )
+                    ).decode("ascii"),
+                    "propositions": [
+                        base64.b64encode("Blanc".encode("utf-8")).decode("ascii"),
+                        base64.b64encode("Noir".encode("utf-8")).decode("ascii"),
+                        base64.b64encode("Gris".encode("utf-8")).decode("ascii"),
+                        base64.b64encode("Marron".encode("utf-8")).decode("ascii"),
+                    ],
                 },
             },
         )
 
         # Mock successful MFA verification
         httpx_mock.add_response(
-            url="https://api.ecoledirecte.com/v3/connexion/doubleauth.awp?verbe=post",
+            method="POST",
+            url="https://api.ecoledirecte.com/v3/connexion/doubleauth.awp?verbe=post&v=4.90.1",
+            json=mock_mfa_success_response,
+        )
+
+        # Mock second GTK for cn/cv login
+        httpx_mock.add_response(
+            method="GET",
+            url="https://api.ecoledirecte.com/v3/login.awp?v=4.90.1&gtk=1",
+            json={"code": 200, "token": "", "message": "", "data": {}},
+        )
+
+        # Mock final login with cn/cv
+        httpx_mock.add_response(
+            method="POST",
+            url="https://api.ecoledirecte.com/v3/login.awp?v=4.90.1",
             json=mock_mfa_success_response,
         )
 
@@ -222,30 +259,58 @@ class TestIntegrationMFAFlow:
 
         # Mock GTK
         httpx_mock.add_response(
-            url="https://api.ecoledirecte.com/",
+            method="GET",
+            url="https://api.ecoledirecte.com/v3/login.awp?v=4.90.1&gtk=1",
             json={"code": 200, "token": "", "message": "", "data": {}},
         )
 
         # Mock login requiring MFA
         httpx_mock.add_response(
-            url="https://api.ecoledirecte.com/v3/login.awp",
+            method="POST",
+            url="https://api.ecoledirecte.com/v3/login.awp?v=4.90.1",
             json=build_api_response({"codeQCM": "REQUIRED"}, code=250),
         )
 
         # Mock QCM
+        import base64
+
         httpx_mock.add_response(
-            url="https://api.ecoledirecte.com/v3/connexion/doubleauth.awp?verbe=get&",
+            method="POST",
+            url="https://api.ecoledirecte.com/v3/connexion/doubleauth.awp?verbe=get&v=4.90.1",
             json={
                 "code": 200,
                 "token": "",
                 "message": "",
-                "data": {"question": "Test?", "propositions": ["Blanc", "Noir"]},
+                "data": {
+                    "question": base64.b64encode("Test?".encode("utf-8")).decode(
+                        "ascii"
+                    ),
+                    "propositions": [
+                        base64.b64encode("Blanc".encode("utf-8")).decode("ascii"),
+                        base64.b64encode("Noir".encode("utf-8")).decode("ascii"),
+                    ],
+                },
             },
         )
 
         # Mock successful MFA with device tokens
         httpx_mock.add_response(
-            url="https://api.ecoledirecte.com/v3/connexion/doubleauth.awp?verbe=post",
+            method="POST",
+            url="https://api.ecoledirecte.com/v3/connexion/doubleauth.awp?verbe=post&v=4.90.1",
+            json=mock_mfa_success_response,
+        )
+
+        # Mock second GTK for cn/cv login
+        httpx_mock.add_response(
+            method="GET",
+            url="https://api.ecoledirecte.com/v3/login.awp?v=4.90.1&gtk=1",
+            json={"code": 200, "token": "", "message": "", "data": {}},
+        )
+
+        # Mock final login with cn/cv
+        httpx_mock.add_response(
+            method="POST",
+            url="https://api.ecoledirecte.com/v3/login.awp?v=4.90.1",
             json=mock_mfa_success_response,
         )
 
@@ -267,22 +332,24 @@ class TestIntegrationEndToEnd:
     """End-to-end integration tests."""
 
     async def test_login_fetch_all_data_student(
-        self, httpx_mock: HTTPXMock, temp_files, mock_login_response_student
+        self, httpx_mock: HTTPXMock, temp_files, mock_student_login_response
     ):
         """Test complete workflow: login + fetch all data types."""
         # Mock GTK
         httpx_mock.add_response(
-            url="https://api.ecoledirecte.com/",
+            method="GET",
+            url="https://api.ecoledirecte.com/v3/login.awp?v=4.90.1&gtk=1",
             json={"code": 200, "token": "", "message": "", "data": {}},
         )
 
         # Mock login
         httpx_mock.add_response(
-            url="https://api.ecoledirecte.com/v3/login.awp",
-            json=mock_login_response_student,
+            method="POST",
+            url="https://api.ecoledirecte.com/v3/login.awp?v=4.90.1",
+            json=mock_student_login_response,
         )
 
-        student_id = mock_login_response_student["data"]["accounts"][0]["id"]
+        student_id = mock_student_login_response["data"]["accounts"][0]["id"]
 
         # Mock all data endpoints
         httpx_mock.add_response(
@@ -298,7 +365,7 @@ class TestIntegrationEndToEnd:
             json=build_api_response([]),
         )
         httpx_mock.add_response(
-            url=f"https://api.ecoledirecte.com/v3/eleves/{student_id}/messages.awp?verbe=get&",
+            url=f"https://api.ecoledirecte.com/v3/eleves/{student_id}/messages.awp?verbe=getall&typeRecuperation=received&orderBy=date&order=desc&page=0&itemsPerPage=20&onlyRead=&query=&idClasseur=0",
             json=build_api_response({"messages": {"received": [], "sent": []}}),
         )
 

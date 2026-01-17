@@ -106,3 +106,60 @@ def temp_files(tmp_path):
     device_file = tmp_path / "device.json"
     qcm_file = tmp_path / "qcm.json"
     return {"device_file": str(device_file), "qcm_file": str(qcm_file)}
+
+
+@pytest.fixture
+def mock_grades_response():
+    return {
+        "code": 200,
+        "token": "fake-token",
+        "message": "",
+        "data": {
+            "notes": [
+                {
+                    "id": 1,
+                    "devoir": "Math Test",
+                    "codePeriode": "A001",
+                    "codeMatiere": "MATH",
+                    "libelleMatiere": "Math",
+                    "date": "2024-01-15",
+                    "dateSaisie": "2024-01-15",
+                    "valeur": "15",
+                    "noteSur": "20",
+                    "coef": "1",
+                    "valeurisee": True,
+                    "nonSignificatif": False,
+                }
+            ],
+            "periodes": [],
+        },
+    }
+
+
+@pytest.fixture
+def mock_homework_response():
+    return {
+        "code": 200,
+        "token": "fake-token",
+        "message": "",
+        "data": {
+            "matieres": [
+                {
+                    "matiere": "Math",
+                    "codeMatiere": "MATH",
+                    "aFaire": {
+                        "2024-01-20": [
+                            {
+                                "idDevoir": 1,
+                                "matiere": "Math",
+                                "codeMatiere": "MATH",
+                                "aFaire": True,
+                                "donneLe": "2024-01-15",
+                                "effectue": False,
+                            }
+                        ]
+                    },
+                }
+            ]
+        },
+    }

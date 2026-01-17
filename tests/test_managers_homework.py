@@ -87,4 +87,4 @@ class TestHomeworkManager:
         await manager.list(student_id=12345)
 
         call_args = mock_client.request.call_args
-        assert "Eleves/12345/cahierdetexte.awp" in call_args[0][0]
+        assert "eleves/12345/cahierdetexte.awp" in call_args[0][0]

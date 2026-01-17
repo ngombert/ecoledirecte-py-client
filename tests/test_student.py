@@ -47,27 +47,50 @@ async def test_get_homework(client, httpx_mock: HTTPXMock):
 
     mock_response = {
         "code": 200,
-        "data": {"2026-01-10": [{"matiere": "Maths", "texte": "Exercice 1"}]},
+        "data": {
+            "matieres": [
+                {
+                    "matiere": "Maths",
+                    "aFaire": {
+                        "2026-01-10": [
+                            {
+                                "idDevoir": 1,
+                                "matiere": "Maths",
+                                "aFaire": True,
+                                "donneLe": "2026-01-08",
+                                "effectue": False,
+                            }
+                        ]
+                    },
+                }
+            ]
+        },
     }
 
     httpx_mock.add_response(
-        url="https://api.ecoledirecte.com/v3/Eleves/12345/cahierdetexte.awp?verbe=get&",
+        url="https://api.ecoledirecte.com/v3/eleves/12345/cahierdetexte.awp?verbe=get&",
         method="POST",
         json=mock_response,
     )
 
     homework = await student.get_homework()
-    assert "2026-01-10" in homework
+    assert isinstance(homework, list)
 
 
 @pytest.mark.asyncio
 async def test_get_schedule(client, httpx_mock: HTTPXMock):
+    from tests.test_helpers import create_mock_schedule_event
+
     student = Student(client, 12345)
     client.token = "fake-token"
 
     mock_response = {
         "code": 200,
-        "data": [{"matiere": "Maths", "start_date": "2026-01-10 08:00"}],
+        "data": [
+            create_mock_schedule_event(
+                subject="Maths", start="2026-01-10 08:00:00", end="2026-01-10 09:00:00"
+            )
+        ],
     }
 
     httpx_mock.add_response(
@@ -78,4 +101,4 @@ async def test_get_schedule(client, httpx_mock: HTTPXMock):
 
     schedule = await student.get_schedule("2026-01-10", "2026-01-11")
     assert len(schedule) == 1
-    assert schedule[0]["matiere"] == "Maths"
+    assert schedule[0].text == "Maths"

@@ -54,7 +54,7 @@ class HomeworkManager(BaseManager):
             ...     pending_only=True
             ... )
         """
-        url = f"https://api.ecoledirecte.com/v3/Eleves/{student_id}/cahierdetexte.awp?verbe=get&"
+        url = f"https://api.ecoledirecte.com/v3/eleves/{student_id}/cahierdetexte.awp?verbe=get&"
         response = await self.client.request(url)
         data = response.get("data", {})
 
