@@ -1,6 +1,12 @@
 import pytest
 import base64
 from ecoledirecte_py_client.client import Client
+from unittest.mock import MagicMock
+
+
+@pytest.fixture
+def mock_client():
+    return MagicMock()
 
 
 @pytest.fixture
@@ -74,3 +80,29 @@ def mock_qcm_response():
             ],
         },
     }
+
+
+@pytest.fixture
+def mock_mfa_success_response():
+    return {
+        "code": 200,
+        "token": "mfa-token",
+        "data": {
+            "cn": "new_cn",
+            "cv": "new_cv",
+            "accounts": [
+                {
+                    "id": 12345,
+                    "typeCompte": "E",
+                    "identifiant": "jsmith",
+                }
+            ],
+        },
+    }
+
+
+@pytest.fixture
+def temp_files(tmp_path):
+    device_file = tmp_path / "device.json"
+    qcm_file = tmp_path / "qcm.json"
+    return {"device_file": str(device_file), "qcm_file": str(qcm_file)}
